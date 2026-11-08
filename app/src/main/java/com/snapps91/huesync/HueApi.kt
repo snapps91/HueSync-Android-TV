@@ -19,7 +19,7 @@ class LinkButtonRequired : IOException(English.PRESS_THE_BUTTON_ON_THE_BRIDGE)
 class HueApi(context: Context, private val bridge: Bridge, private val key: String = "") {
     private data class Response(
         val body: String,
-        val headers: Map<String, List<String>>,
+        val headers: Map<String?, List<String>>,
         val bridgeId: String
     )
 
@@ -74,7 +74,7 @@ class HueApi(context: Context, private val bridge: Bridge, private val key: Stri
                 }
                 output.toString("UTF-8")
             }
-            return Response(text, connection.headerFields.filterKeys { it != null }, peerIdentity)
+            return Response(text, connection.headerFields, peerIdentity)
         } finally { connection.disconnect() }
     }
 
@@ -105,7 +105,7 @@ class HueApi(context: Context, private val bridge: Bridge, private val key: Stri
     }
     fun applicationId(): String {
         val headers = request("GET", "/auth/v1").headers
-        return headers.entries.firstOrNull { it.key.equals("hue-application-id", true) }
+        return headers.entries.firstOrNull { it.key?.equals("hue-application-id", true) == true }
             ?.value?.firstOrNull()?.also { require(it.isNotBlank()) }
             ?: throw IOException(English.BRIDGE_DID_NOT_RETURN_HUE_APPLICATION)
     }
