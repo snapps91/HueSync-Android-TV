@@ -216,6 +216,10 @@ or Android cannot verify the APK signature.
 - Public Hue CAs are included from the
   [openHAB Hue CA bundle](https://github.com/openhab/openhab-addons/blob/main/bundles/org.openhab.binding.hue/src/main/resources/huebridge_cacert.pem).
 
+## License
+
+HueSync is available under the [MIT License](LICENSE).
+
 The app uses Bouncy Castle TLS libraries under their applicable license. Third-
 party license notices are included in the APK metadata. HueSync does not use the
 legacy Philips Hue SDK, which was discontinued by Philips.
