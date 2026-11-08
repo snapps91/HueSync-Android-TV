@@ -16,14 +16,7 @@ dist/
 *.iml
 *.ipr
 *.iws
-.idea/caches/
-.idea/libraries/
-.idea/modules.xml
-.idea/workspace.xml
-.idea/tasks.xml
-.idea/usage.statistics.xml
-.idea/dictionaries/
-.idea/shelf/
+.idea/
 
 # Operating system files
 .DS_Store
