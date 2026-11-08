@@ -1,5 +1,10 @@
 # HueSync for Android TV
 
+[![Android CI](https://github.com/snapps91/HueSync-Android-TV/actions/workflows/android.yml/badge.svg)](https://github.com/snapps91/HueSync-Android-TV/actions/workflows/android.yml)
+[![Latest release](https://img.shields.io/github/v/release/snapps91/HueSync-Android-TV)](https://github.com/snapps91/HueSync-Android-TV/releases/latest)
+
+![HueSync on an Android TV with colorful ambient lighting](docs/images/huesync_cover.png)
+
 HueSync is a native Android TV app that samples the TV's own screen and sends
 per-light colors to a Philips Hue Entertainment area on the local network. It is
 designed for ambient lighting while watching content on the TV where the app is
