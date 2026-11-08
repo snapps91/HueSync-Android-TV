@@ -10,6 +10,18 @@ android {
         }
     }
 
+    signingConfigs {
+        val keystorePath = System.getenv("HUESYNC_KEYSTORE_PATH")
+        if (!keystorePath.isNullOrBlank()) {
+            create("release") {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("HUESYNC_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("HUESYNC_KEY_ALIAS")
+                keyPassword = System.getenv("HUESYNC_KEY_PASSWORD")
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.snapps91.huesync"
         minSdk = 23
@@ -22,6 +34,7 @@ android {
 
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

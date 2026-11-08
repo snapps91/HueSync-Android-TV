@@ -11,6 +11,7 @@ Use this file as a navigation map, not as a substitute for the source code. Keep
 - Bridge HTTPS API and certificate checks: `HueApi.kt`; mDNS discovery: `BridgeDiscovery.kt`; DTLS transport: `HueStream.kt`
 - Encrypted credentials and preferences: `SyncSettings.kt`; user-facing error text: `UserMessage.kt`; manifest and build configuration: `app/src/main/AndroidManifest.xml`, `app/build.gradle.kts`
 - Tests: `app/src/test`, `app/src/sharedTest`, `app/src/androidTest`
+- CI build, JVM tests, and signed tag releases: `.github/workflows/android.yml`; release signing is configured from environment variables in `app/build.gradle.kts`
 
 Start with `rg` to locate the affected symbol, then read only the relevant files or sections. Avoid dumping the entire repository, generated build output, or `dist/` unless the task requires them. Read `README.md` when changing public behavior or documentation.
 

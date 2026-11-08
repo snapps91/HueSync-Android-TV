@@ -157,6 +157,38 @@ establish device compatibility.
 
 The Android namespace and application ID are `com.snapps91.huesync`.
 
+## Continuous integration and releases
+
+The [Android workflow](.github/workflows/android.yml) runs on branch pushes, pull
+requests, and version tags. It builds the debug APK, runs JVM unit tests, and
+compiles Android instrumentation tests. Instrumentation tests still need an
+Android device or emulator and are not executed by this workflow. The debug APK
+is available as a workflow artifact.
+
+Pushing a tag such as `v0.0.1` also builds a signed release APK and attaches it
+to a GitHub Release, after the build and tests pass. The tag (with an optional
+`v` prefix) must match `versionName` in `app/build.gradle.kts`. Update
+`versionCode` for each release as well.
+
+Before pushing the first release tag, add these repository Actions secrets under
+**Settings → Secrets and variables → Actions**:
+
+| Secret | Value |
+| --- | --- |
+| `HUESYNC_KEYSTORE_BASE64` | Base64 encoding of the release keystore file, without line breaks |
+| `HUESYNC_KEYSTORE_PASSWORD` | Keystore password |
+| `HUESYNC_KEY_ALIAS` | Signing key alias |
+| `HUESYNC_KEY_PASSWORD` | Signing key password |
+
+For the first secret, encode an existing keystore with
+`base64 < /path/to/huesync-release.jks | tr -d '\n'` and paste the result as
+the secret value.
+
+Keep the keystore and passwords outside the repository and back them up securely.
+Use the same signing key for subsequent APK updates. The workflow fails before
+publishing if a signing secret is missing, the tag differs from the app version,
+or Android cannot verify the APK signature.
+
 ## Project structure
 
 - `MainActivity.kt` — Bridge setup, area selection, capture consent, and user

@@ -5,6 +5,8 @@
 
 # Android local configuration and native build output
 local.properties
+*.jks
+*.keystore
 captures/
 .externalNativeBuild/
 .cxx/
