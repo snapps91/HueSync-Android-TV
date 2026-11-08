@@ -1,0 +1,13 @@
+<resources>
+    <color name="brand_background">#090B14</color>
+    <color name="brand_surface">#161A2B</color>
+    <color name="brand_surface_raised">#25304B</color>
+    <color name="brand_surface_focused">#314066</color>
+    <color name="brand_badge">#2A1B3D</color>
+    <color name="brand_text">#F7F8FF</color>
+    <color name="brand_muted">#AEBAD1</color>
+    <color name="brand_cyan">#52E0F2</color>
+    <color name="brand_pink">#F575D2</color>
+    <color name="brand_violet">#C399FF</color>
+    <color name="brand_dark_text">#0A101B</color>
+</resources>
