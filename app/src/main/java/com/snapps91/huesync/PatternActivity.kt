@@ -19,7 +19,7 @@ class PatternActivity : Activity() {
             private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
             private val started = android.os.SystemClock.elapsedRealtime()
             private val colors = intArrayOf(Color.RED, Color.GREEN, Color.BLUE)
-            private val labels = arrayOf("LEFT", "CENTER", "RIGHT")
+            private val labels = arrayOf(English.LEFT, English.CENTER, English.RIGHT)
 
             override fun onDraw(canvas: Canvas) {
                 val seconds = (android.os.SystemClock.elapsedRealtime() - started) / 1000f
@@ -37,7 +37,7 @@ class PatternActivity : Activity() {
                 }
                 paint.textAlign = Paint.Align.LEFT
                 paint.textSize = height / 32f
-                canvas.drawText("HueSync · RGB test pattern · changes every 4 s · BACK to exit", width * .08f, height * .9f, paint)
+                canvas.drawText(English.HUESYNC_RGB_TEST_PATTERN_CHANGES_EVERY, width * .08f, height * .9f, paint)
                 paint.clearShadowLayer()
                 postInvalidateDelayed(33)
             }

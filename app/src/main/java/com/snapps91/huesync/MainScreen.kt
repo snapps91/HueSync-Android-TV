@@ -78,7 +78,7 @@ internal class MainScreen(
     }
 
     fun showBridge(bridge: Bridge) {
-        bridgeLabel.text = "${bridge.name} · ${bridge.ip}"
+        bridgeLabel.text = English.bridge(bridge.name, bridge.ip)
     }
 
     fun showMessage(value: String?) {
@@ -90,15 +90,15 @@ internal class MainScreen(
     }
 
     fun addDiscoveredBridge(bridge: Bridge) {
-        discovered.addView(button("${bridge.name} · ${bridge.ip}") {
+        discovered.addView(button(English.bridge(bridge.name, bridge.ip)) {
             setBridgeIp(bridge.ip)
-            showMessage("Bridge selected. Press its physical button, then choose Pair Bridge.")
+            showMessage(English.BRIDGE_SELECTED_PRESS_ITS_PHYSICAL_BUTTON)
         })
     }
 
     fun showAreas(areas: List<HueArea>, selectedIndex: Int) {
-        areaChoice.adapter = adapter(if (areas.isEmpty()) listOf("No areas: create one in the Hue app") else
-            areas.map { "${it.name} · ${it.channels.size} channels${if (it.active) " · in use" else ""}" })
+        areaChoice.adapter = adapter(if (areas.isEmpty()) listOf(English.NO_AREAS_CREATE_ONE_IN_THE) else
+            areas.map { English.area(it.name, it.channels.size, it.active) })
         areaChoice.setSelection(selectedIndex)
     }
 
@@ -113,18 +113,18 @@ internal class MainScreen(
 
     fun render(snapshot: SyncSnapshot, busy: Boolean, hasCredentials: Boolean, hasArea: Boolean) {
         status.text = snapshot.message
-        badge.text = if (snapshot.running) "●  SYNCING" else "○  STANDBY"
+        badge.text = if (snapshot.running) English.SYNCING else English.STANDBY
         metrics.text = if (snapshot.running) String.format(
-            Locale.US, "%d analyzed fps   ·   %.1f ms sampling   ·   %d channels",
+            Locale.US, English.METRICS_FORMAT,
             snapshot.fps, snapshot.gpuMs, snapshot.channels
-        ) else "Local GPU   ·   Encrypted stream   ·   No cloud"
+        ) else English.LOCAL_GPU_ENCRYPTED_STREAM_NO_CLOUD
         hardware.text = if (snapshot.running) buildString {
-            append("${snapshot.renderer} · ${snapshot.frames} packets sent")
+            append(English.packets(snapshot.renderer, snapshot.frames))
             if (!snapshot.renderer.startsWith("ImageReader")) append(String.format(
-                Locale.US, " · acquisition %.1f ms · draw/readback %.1f ms",
+                Locale.US, English.GPU_METRICS_FORMAT,
                 snapshot.acquisitionMs, snapshot.drawReadbackMs
             ))
-        } else "SurfaceTexture → shader OpenGL ES → Hue Entertainment / DTLS"
+        } else English.SURFACETEXTURE_SHADER_OPENGL_ES_HUE_ENTERTAINMENT
 
         start.isEnabled = !snapshot.running && !busy && hasCredentials && hasArea
         stop.isEnabled = snapshot.running
@@ -163,13 +163,13 @@ internal class MainScreen(
             addView(buildTuningCard(options), LinearLayout.LayoutParams(0, -2, 1f))
         })
         content.addView(space(14))
-        content.addView(text("HOW IT WORKS", 11, violet, true))
+        content.addView(text(English.HOW_IT_WORKS, 11, violet, true))
         content.addView(text(
-            "Allow full-screen sharing, then return to TV or open another app. HueSync keeps running with a persistent notification. No video is stored or sent over the network; the Bridge receives colors only.",
+            English.ALLOW_FULL_SCREEN_SHARING_THEN_RETURN,
             13, muted
         ).apply { setPadding(0, dp(6), 0, dp(6)) })
         content.addView(text(
-            "DRM-protected video, TV tuners, and HDMI inputs may not be captured. A local network connection cannot capture another device's screen.",
+            English.DRM_PROTECTED_VIDEO_TV_TUNERS_AND,
             12, muted
         ))
         return scroll
@@ -177,14 +177,14 @@ internal class MainScreen(
 
     private fun buildHeader(): View = row().apply {
         val title = column().apply {
-            addView(text("HUE SYNC  /  ANDROID TV", 12, cyan, true))
-            addView(text("Your screen becomes light.", 30, ink, true).apply {
+            addView(text(English.HUE_SYNC_ANDROID_TV, 12, cyan, true))
+            addView(text(English.YOUR_SCREEN_BECOMES_LIGHT, 30, ink, true).apply {
                 setPadding(0, dp(5), 0, dp(5))
             })
-            addView(text("Real-time colors. All on your local network.", 14, muted))
+            addView(text(English.REAL_TIME_COLORS_ALL_ON_YOUR, 14, muted))
         }
         addView(title, LinearLayout.LayoutParams(0, -2, 1f))
-        badge = text("●  READY", 12, pink, true).apply {
+        badge = text(English.READY, 12, pink, true).apply {
             background = rounded(activity.getColor(R.color.brand_badge))
             setPadding(dp(14), dp(10), dp(14), dp(10))
         }
@@ -192,51 +192,51 @@ internal class MainScreen(
     }
 
     private fun buildDashboard(): View = card().apply {
-        status = text("Connect a Bridge to get started", 20, ink, true)
+        status = text(English.CONNECT_A_BRIDGE_TO_GET_STARTED, 20, ink, true)
         addView(status)
         addView(space(10))
-        metrics = text("— analyzed fps     ·     — ms sampling     ·     — channels", 15, cyan)
+        metrics = text(English.ANALYZED_FPS_MS_SAMPLING_CHANNELS, 15, cyan)
         addView(metrics)
-        hardware = text("SurfaceTexture → shader OpenGL ES → Hue Entertainment / DTLS", 12, muted)
+        hardware = text(English.SURFACETEXTURE_SHADER_OPENGL_ES_HUE_ENTERTAINMENT, 12, muted)
         addView(hardware.apply { setPadding(0, dp(8), 0, 0) })
         channelStrip = row().apply { minimumHeight = dp(22); setPadding(0, dp(10), 0, 0) }
         addView(channelStrip)
         addView(row().apply {
             setPadding(0, dp(12), 0, 0)
-            start = button("▶  Start sync", primary = true, actions::onStartSync)
-            stop = button("■  Stop", action = actions::onStopSync)
+            start = button(English.START_SYNC, primary = true, actions::onStartSync)
+            stop = button(English.STOP, action = actions::onStopSync)
             addView(start)
             addView(stop)
-            addView(button("Return to TV", action = actions::onReturnToTv))
+            addView(button(English.RETURN_TO_TV, action = actions::onReturnToTv))
         })
     }
 
     private fun buildConnectionCard(): View = card().apply {
-        addView(text("01  /  CONNECT BRIDGE", 12, cyan, true))
-        bridgeLabel = text("Hue Bridge on your local network", 19, ink, true).apply {
+        addView(text(English.TEXT_01_CONNECT_BRIDGE, 12, cyan, true))
+        bridgeLabel = text(English.HUE_BRIDGE_ON_YOUR_LOCAL_NETWORK, 19, ink, true).apply {
             setPadding(0, dp(10), 0, dp(6))
         }
         addView(bridgeLabel)
         ip = EditText(activity).apply {
-            hint = "Bridge IP address"
+            hint = English.BRIDGE_IP_ADDRESS
             setTextColor(ink)
             setHintTextColor(muted)
             textSize = 16f
             isSingleLine = true
             inputType = android.text.InputType.TYPE_CLASS_PHONE
             if (Build.VERSION.SDK_INT >= 26) importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
-            contentDescription = "Hue Bridge IP address"
+            contentDescription = English.HUE_BRIDGE_IP_ADDRESS
         }
         addView(ip, LinearLayout.LayoutParams(-1, dp(48)))
-        val search = button("Search network", action = actions::onSearchNetwork)
-        val pair = button("Pair Bridge", action = actions::onPairBridge)
+        val search = button(English.SEARCH_NETWORK, action = actions::onSearchNetwork)
+        val pair = button(English.PAIR_BRIDGE, action = actions::onPairBridge)
         addView(row().apply { addView(search); addView(pair) })
         discovered = column()
         addView(discovered)
-        setupMessage = text("Press the physical button on the Bridge, then choose Pair Bridge.", 13, muted)
+        setupMessage = text(English.PRESS_THE_PHYSICAL_BUTTON_ON_THE, 13, muted)
         addView(setupMessage.apply { setPadding(0, dp(8), 0, dp(10)) })
-        addView(text("ENTERTAINMENT AREA", 11, muted, true))
-        areaChoice = spinner(listOf("Pair a Bridge…")).apply {
+        addView(text(English.ENTERTAINMENT_AREA, 11, muted, true))
+        areaChoice = spinner(listOf(English.PAIR_A_BRIDGE)).apply {
             onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
                 override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
                 override fun onItemSelected(
@@ -245,20 +245,20 @@ internal class MainScreen(
             }
         }
         addView(areaChoice)
-        reload = button("Refresh areas", action = actions::onRefreshAreas)
+        reload = button(English.REFRESH_AREAS, action = actions::onRefreshAreas)
         addView(reload)
         addView(text(
-            "Create a TV area and arrange its lights in the Philips Hue app. Light positions, including gradient segments, are read from the Bridge.",
+            English.CREATE_A_TV_AREA_AND_ARRANGE,
             12, muted
         ))
         setupControls.addAll(listOf(ip, search, pair, areaChoice, reload))
     }
 
     private fun buildTuningCard(options: SyncOptions): View = card().apply {
-        addView(text("02  /  LIGHT RESPONSE", 12, pink, true))
-        addView(text("Tune your lights", 19, ink, true).apply { setPadding(0, dp(10), 0, dp(8)) })
+        addView(text(English.TEXT_02_LIGHT_RESPONSE, 12, pink, true))
+        addView(text(English.TUNE_YOUR_LIGHTS, 19, ink, true).apply { setPadding(0, dp(10), 0, dp(8)) })
         invertHorizontal = Switch(activity).apply {
-            text = "Invert left / right"
+            text = English.INVERT_LEFT_RIGHT
             textSize = 13f
             setTextColor(ink)
             isChecked = options.invertHorizontal
@@ -266,29 +266,29 @@ internal class MainScreen(
         }
         addView(invertHorizontal)
         addView(text(
-            "If GPU capture fails, the app switches to RGBA automatically. DRM-protected video remains unavailable.",
+            English.IF_GPU_CAPTURE_FAILS_THE_APP,
             12, muted
         ))
-        addView(text("Stream rate", 12, muted))
-        fpsChoice = spinner(listOf("20 fps · efficient", "30 fps · balanced", "50 fps · responsive"))
+        addView(text(English.STREAM_RATE, 12, muted))
+        fpsChoice = spinner(listOf(English.TEXT_20_FPS_EFFICIENT, English.TEXT_30_FPS_BALANCED, English.TEXT_50_FPS_RESPONSIVE))
         fpsChoice.setSelection(STREAM_RATES.indexOf(options.fps).coerceAtLeast(0))
         addView(fpsChoice)
-        brightness = slider(this, "Brightness", 100, (options.brightness * 100).toInt()) { "$it%" }
-        smoothing = slider(this, "Smoothing", 300, options.smoothingMs) { "$it ms" }
-        saturation = slider(this, "Saturation", 180, (options.saturation * 100).toInt()) { "$it%" }
-        crop = slider(this, "Crop top / bottom black bars", 20, (options.crop * 100).toInt()) { "$it%" }
+        brightness = slider(this, English.BRIGHTNESS, 100, (options.brightness * 100).toInt()) { English.percent(it) }
+        smoothing = slider(this, English.SMOOTHING, 300, options.smoothingMs) { English.milliseconds(it) }
+        saturation = slider(this, English.SATURATION, 180, (options.saturation * 100).toInt()) { English.percent(it) }
+        crop = slider(this, English.CROP_TOP_BOTTOM_BLACK_BARS, 20, (options.crop * 100).toInt()) { English.percent(it) }
         addView(text(
-            "Changes apply when you start the next session. Cropping is fixed; use 0% for full-screen content.",
+            English.CROP_HELP,
             12, muted
         ))
-        addView(button("Open test pattern", action = actions::onOpenTestPattern))
+        addView(button(English.OPEN_TEST_PATTERN, action = actions::onOpenTestPattern))
         setupControls.addAll(listOf(invertHorizontal, fpsChoice, brightness, smoothing, saturation, crop))
     }
 
     private fun slider(
         parent: LinearLayout, name: String, maximum: Int, initial: Int, format: (Int) -> String
     ): SeekBar {
-        val label = text("$name · ${format(initial)}", 12, muted)
+        val label = text(English.slider(name, format(initial)), 12, muted)
         parent.addView(label)
         return SeekBar(activity).apply {
             max = maximum
@@ -297,7 +297,7 @@ internal class MainScreen(
             parent.addView(this, LinearLayout.LayoutParams(-1, dp(36)))
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
-                    label.text = "$name · ${format(value)}"
+                    label.text = English.slider(name, format(value))
                 }
                 override fun onStartTrackingTouch(bar: SeekBar) = Unit
                 override fun onStopTrackingTouch(bar: SeekBar) = Unit

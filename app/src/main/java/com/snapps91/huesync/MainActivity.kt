@@ -45,7 +45,7 @@ class MainActivity : Activity(), MainScreen.Actions {
         screen.setBridgeIp(savedInstanceState?.getString(STATE_IP) ?: credentials?.bridge?.ip.orEmpty())
 
         pairing.exceptionOrNull()?.let {
-            screen.showMessage("Credentials could not be read. Pair the Bridge again.")
+            screen.showMessage(English.CREDENTIALS_COULD_NOT_BE_READ_PAIR)
         } ?: credentials?.let {
             screen.showBridge(it.bridge)
             onRefreshAreas()
@@ -78,7 +78,7 @@ class MainActivity : Activity(), MainScreen.Actions {
     override fun onSearchNetwork() {
         discovery?.close()
         screen.clearDiscoveredBridges()
-        screen.showMessage("Searching the local network with mDNS… You can also enter the IP address manually.")
+        screen.showMessage(English.SEARCHING_THE_LOCAL_NETWORK_WITH_MDNS)
         val seen = mutableSetOf<String>()
         lateinit var search: BridgeDiscovery
         search = BridgeDiscovery(this, { bridge ->
@@ -93,7 +93,7 @@ class MainActivity : Activity(), MainScreen.Actions {
         main.postDelayed({
             search.close()
             if (!isDestroyed && discovery === search && seen.isEmpty()) {
-                screen.showMessage("No Bridge found with mDNS. Enter its IP address and check the local network.")
+                screen.showMessage(English.NO_BRIDGE_FOUND_WITH_MDNS_ENTER)
             }
         }, DISCOVERY_TIMEOUT_MS)
     }
@@ -107,24 +107,24 @@ class MainActivity : Activity(), MainScreen.Actions {
             screen.showMessage(e.message)
             return
         }
-        runAsync("Checking Bridge and pairing…", {
-            val bridge = HueApi(this, Bridge(address, "", "Hue Bridge")).identify()
+        runAsync(English.CHECKING_BRIDGE_AND_PAIRING, {
+            val bridge = HueApi(this, Bridge(address, "", English.HUE_BRIDGE)).identify()
             HueApi(this, bridge).pair().also { settings.saveCredentials(it) }
         }) { paired ->
             credentials = paired
             screen.showBridge(paired.bridge)
-            screen.showMessage("Bridge paired. Select an Entertainment area.")
+            screen.showMessage(English.BRIDGE_PAIRED_SELECT_AN_ENTERTAINMENT_AREA)
             onRefreshAreas()
         }
     }
 
     override fun onRefreshAreas() {
         val paired = credentials ?: run {
-            screen.showMessage("Pair the Bridge first.")
+            screen.showMessage(English.PAIR_THE_BRIDGE_FIRST)
             return
         }
         if (busy) return
-        runAsync("Loading Entertainment areas…", {
+        runAsync(English.LOADING_ENTERTAINMENT_AREAS, {
             HueApi(this, paired.bridge, paired.applicationKey).areas()
         }) { loaded ->
             areas = loaded
@@ -132,8 +132,8 @@ class MainActivity : Activity(), MainScreen.Actions {
             screen.showAreas(loaded, index)
             settings.area = loaded.getOrNull(index)?.id.orEmpty()
             screen.showMessage(if (loaded.isEmpty())
-                "No Entertainment areas found. Create one in the Hue app, then refresh."
-            else "Bridge ready. Light positions come from the Hue area.")
+                English.NO_ENTERTAINMENT_AREAS_FOUND_CREATE_ONE
+            else English.BRIDGE_READY_LIGHT_POSITIONS_COME_FROM)
         }
     }
 
@@ -147,7 +147,7 @@ class MainActivity : Activity(), MainScreen.Actions {
     override fun onStartSync() {
         if (credentials == null || settings.area.isEmpty() || SyncStatus.value.running || busy) return
         if (areas.firstOrNull { it.id == settings.area }?.active == true) {
-            screen.showMessage("This area is in use. Stop the other Hue app and refresh the areas.")
+            screen.showMessage(English.THIS_AREA_IS_IN_USE_STOP)
             return
         }
         settings.saveOptions(screen.selectedOptions())
@@ -180,7 +180,7 @@ class MainActivity : Activity(), MainScreen.Actions {
             else manager.createScreenCaptureIntent()
             startActivityForResult(intent, REQUEST_CAPTURE)
         } catch (e: Exception) {
-            screen.showMessage("Screen capture is unavailable on this firmware: ${UserMessage.from(e)}")
+            screen.showMessage(English.firmwareCaptureUnavailable(UserMessage.from(e)))
         }
     }
 
@@ -196,14 +196,14 @@ class MainActivity : Activity(), MainScreen.Actions {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != REQUEST_CAPTURE) return
         if (resultCode != RESULT_OK || data == null) {
-            screen.showMessage("Screen sharing was not authorized. Synchronization did not start.")
+            screen.showMessage(English.SCREEN_SHARING_WAS_NOT_AUTHORIZED_SYNCHRONIZATION)
             return
         }
         try {
             ContextCompat.startForegroundService(this,
                 Intent(this, SyncService::class.java).putExtra(SyncService.EXTRA_CONSENT, data))
         } catch (e: Exception) {
-            screen.showMessage("Could not start the service: ${UserMessage.from(e)}")
+            screen.showMessage(English.serviceStartFailed(UserMessage.from(e)))
         }
     }
 

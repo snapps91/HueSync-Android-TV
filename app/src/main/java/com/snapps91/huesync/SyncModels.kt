@@ -32,11 +32,11 @@ data class SyncOptions(
 
 data class SyncSnapshot(
     val running: Boolean = false,
-    val message: String = "Ready to connect a Bridge",
+    val message: String = English.READY_TO_CONNECT_A_BRIDGE,
     val fps: Int = 0,
     val gpuMs: Float = 0f,
     val channels: Int = 0,
-    val renderer: String = "GPU OpenGL ES",
+    val renderer: String = English.GPU_OPENGL_ES,
     val colors: IntArray = intArrayOf(),
     val frames: Long = 0,
     val acquisitionMs: Float = 0f,

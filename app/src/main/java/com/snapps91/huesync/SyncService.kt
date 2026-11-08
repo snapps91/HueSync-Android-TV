@@ -41,7 +41,7 @@ class SyncService : Service() {
     @Volatile private var lastFrameAt = 0L
     @Volatile private var frameCount = 0L
     @Volatile private var sampleMs = 0f
-    @Volatile private var renderer = "GPU OpenGL ES"
+    @Volatile private var renderer = English.GPU_OPENGL_ES
     @Volatile private var contentVisible = true
     private var lastStatsAt = 0L
     private var lastStatsFrames = 0L
@@ -51,7 +51,7 @@ class SyncService : Service() {
     private var encodedVisible = true
     private var hiddenColors = FloatArray(0)
     private val callback = object : MediaProjection.Callback() {
-        override fun onStop() = finish("Screen sharing ended")
+        override fun onStop() = finish(English.SCREEN_SHARING_ENDED)
         override fun onCapturedContentVisibilityChanged(isVisible: Boolean) {
             contentVisible = isVisible
         }
@@ -63,7 +63,7 @@ class SyncService : Service() {
         gpu = Handler(gpuThread.looper)
         if (Build.VERSION.SDK_INT >= 26) {
             getSystemService(NotificationManager::class.java).createNotificationChannel(
-                NotificationChannel("sync", "Hue synchronization", NotificationManager.IMPORTANCE_LOW)
+                NotificationChannel("sync", English.HUE_SYNCHRONIZATION, NotificationManager.IMPORTANCE_LOW)
             )
         }
     }
@@ -72,7 +72,7 @@ class SyncService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
-            finish("Synchronization stopped")
+            finish(English.SYNCHRONIZATION_STOPPED)
             return START_NOT_STICKY
         }
         if (alive.get()) return START_NOT_STICKY
@@ -82,22 +82,22 @@ class SyncService : Service() {
             return START_NOT_STICKY
         }
         try {
-            ServiceCompat.startForeground(this, 1, notification("Connecting to Bridge…"),
+            ServiceCompat.startForeground(this, 1, notification(English.CONNECTING_TO_BRIDGE),
                 if (Build.VERSION.SDK_INT >= 29) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION else 0)
             val settings = SyncSettings(this)
-            val credentials = settings.credentials() ?: error("Pair the Bridge first")
+            val credentials = settings.credentials() ?: error(English.PAIR_THE_BRIDGE_FIRST_2)
             val options = settings.options()
-            areaId = settings.area.also { require(it.isNotEmpty()) { "Select an Entertainment area" } }
+            areaId = settings.area.also { require(it.isNotEmpty()) { English.SELECT_AN_ENTERTAINMENT_AREA } }
             alive.set(true)
-            SyncStatus.value = SyncSnapshot(true, "Connecting to Bridge…")
+            SyncStatus.value = SyncSnapshot(true, English.CONNECTING_TO_BRIDGE)
             val activeProjection = (getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager)
                 .getMediaProjection(Activity.RESULT_OK, consent)
-                ?: error("Screen capture unavailable")
+                ?: error(English.SCREEN_CAPTURE_UNAVAILABLE)
             projection = activeProjection
             activeProjection.registerCallback(callback, main)
             network.execute { connectAndStart(credentials, options) }
         } catch (e: Exception) {
-            finish("Start failed: ${UserMessage.from(e)}")
+            finish(English.startFailed(UserMessage.from(e)))
         }
         return START_NOT_STICKY
     }
@@ -106,11 +106,11 @@ class SyncService : Service() {
         try {
             val client = HueApi(this, credentials.bridge, credentials.applicationKey).also { api = it }
             val area = client.areas().firstOrNull { it.id == areaId }
-                ?: error("Entertainment area is no longer available")
+                ?: error(English.ENTERTAINMENT_AREA_IS_NO_LONGER_AVAILABLE)
             require(area.channels.isNotEmpty() && area.channels.size <= HuePacket.MAX_CHANNELS) {
-                "Area has no compatible channels (maximum ${HuePacket.MAX_CHANNELS})"
+                English.noCompatibleChannels(HuePacket.MAX_CHANNELS)
             }
-            require(!area.active) { "Area is already in use. Stop the other Hue synchronization first." }
+            require(!area.active) { English.AREA_IS_ALREADY_IN_USE_STOP }
             applicationId = client.applicationId()
             if (!alive.get()) return
 
@@ -133,7 +133,7 @@ class SyncService : Service() {
                 1_000_000_000L / options.fps, TimeUnit.NANOSECONDS
             )
         } catch (e: Exception) {
-            finish("Connection failed: ${UserMessage.from(e)}")
+            finish(English.connectionFailed(UserMessage.from(e)))
         }
     }
 
@@ -143,7 +143,7 @@ class SyncService : Service() {
             if (alive.get()) try {
                 check(client.ownedBy(areaId, applicationId)) { OWNERSHIP_LOST }
             } catch (e: Exception) {
-                if (alive.getAndSet(false)) finish("Synchronization interrupted: ${UserMessage.from(e)}")
+                if (alive.getAndSet(false)) finish(English.syncInterrupted(UserMessage.from(e)))
             }
         }, 3, 3, TimeUnit.SECONDS)
     }
@@ -159,8 +159,8 @@ class SyncService : Service() {
                     renderer = device
                 }, ::finish).also { it.open() }
             main.post { if (alive.get()) getSystemService(NotificationManager::class.java)
-                .notify(1, notification("Synchronization active · ${area.name}")) }
-        } catch (e: Exception) { finish("Capture unavailable: ${UserMessage.from(e)}") }
+                .notify(1, notification(English.syncActive(area.name))) }
+        } catch (e: Exception) { finish(English.captureUnavailable(UserMessage.from(e))) }
     }
     private fun tick(packet: HuePacket, channelCount: Int) {
         if (!alive.get()) return
@@ -169,7 +169,7 @@ class SyncService : Service() {
             val now = SystemClock.elapsedRealtime()
             if (now - lastStatsAt >= 1_000) publishStatus(now, channelCount)
         } catch (e: Exception) {
-            finish("Synchronization interrupted: ${UserMessage.from(e)}")
+            finish(English.syncInterrupted(UserMessage.from(e)))
         }
     }
 
@@ -194,12 +194,12 @@ class SyncService : Service() {
             ((frames - lastStatsFrames) * 1_000 / (now - lastStatsAt)).toInt()
         val colors = latest
         val message = when {
-            !contentVisible -> "Content not visible · lights dimmed"
-            lastFrameAt == 0L -> "Waiting for the first frame…"
+            !contentVisible -> English.CONTENT_NOT_VISIBLE_LIGHTS_DIMMED
+            lastFrameAt == 0L -> English.WAITING_FOR_THE_FIRST_FRAME
             colors.maxOrNull()?.let { it < .015f } == true ->
-                "Black screen · dark scene or uncapturable content"
-            now - lastFrameAt > 3_000 -> "Static image · keeping colors active"
-            else -> "Synchronization active"
+                English.BLACK_SCREEN_DARK_SCENE_OR_UNCAPTURABLE
+            now - lastFrameAt > 3_000 -> English.STATIC_IMAGE_KEEPING_COLORS_ACTIVE
+            else -> English.SYNCHRONIZATION_ACTIVE
         }
         val swatches = IntArray(channelCount) { i ->
             val offset = i * 3
@@ -220,8 +220,8 @@ class SyncService : Service() {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val stop = PendingIntent.getService(this, 1, Intent(this, SyncService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_IMMUTABLE)
         return NotificationCompat.Builder(this, "sync").setSmallIcon(R.drawable.ic_sync)
-            .setContentTitle("HueSync · TV ambient light").setContentText(message).setContentIntent(open)
-            .setOngoing(true).setSilent(true).addAction(0, "Stop", stop).build()
+            .setContentTitle(English.HUESYNC_TV_AMBIENT_LIGHT).setContentText(message).setContentIntent(open)
+            .setOngoing(true).setSilent(true).addAction(0, English.STOP_2, stop).build()
     }
     private fun finish(message: String) {
         alive.set(false)
@@ -251,14 +251,14 @@ class SyncService : Service() {
             }
         }
         network.shutdown() // periodic tasks are cancelled; queued cleanup is allowed to finish.
-        if (SyncStatus.value.running) SyncStatus.value = SyncStatus.value.copy(running = false, message = "Service stopped", fps = 0)
+        if (SyncStatus.value.running) SyncStatus.value = SyncStatus.value.copy(running = false, message = English.SERVICE_STOPPED, fps = 0)
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         super.onDestroy()
     }
-    override fun onTaskRemoved(rootIntent: Intent?) { finish("App closed · synchronization ended") }
+    override fun onTaskRemoved(rootIntent: Intent?) { finish(English.APP_CLOSED_SYNCHRONIZATION_ENDED) }
     companion object {
         const val EXTRA_CONSENT = "projectionConsent"
         const val ACTION_STOP = "com.snapps91.huesync.STOP"
-        private const val OWNERSHIP_LOST = "The Bridge ended the stream or another app controls it"
+        private const val OWNERSHIP_LOST = English.THE_BRIDGE_ENDED_THE_STREAM_OR
     }
 }

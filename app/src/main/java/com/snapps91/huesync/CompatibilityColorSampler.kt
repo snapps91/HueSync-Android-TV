@@ -38,7 +38,7 @@ class CompatibilityColorSampler(
                 val sampler = checkNotNull(kernel)
                 val colors = sampler.sample(plane.buffer, plane.rowStride, plane.pixelStride)
                 onColor(colors, (SystemClock.elapsedRealtimeNanos() - started) / 1_000_000f,
-                    "ImageReader RGBA · compatibility")
+                    English.IMAGEREADER_RGBA_COMPATIBILITY)
             }
         } catch (e: Exception) {
             onError(e)

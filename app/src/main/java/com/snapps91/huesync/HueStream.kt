@@ -43,7 +43,7 @@ class HueStream : Closeable {
     }
 
     fun send(packet: ByteArray) {
-        val current = transport ?: throw java.io.IOException("Hue stream is not connected")
+        val current = transport ?: throw java.io.IOException(English.HUE_STREAM_IS_NOT_CONNECTED)
         current.send(packet, 0, packet.size)
     }
 

@@ -7,8 +7,8 @@ import javax.net.ssl.SSLException
 internal object UserMessage {
     fun from(error: Throwable): String = when (error) {
         is SSLException ->
-            "Hue certificate could not be verified. Check the IP address, TV date, and Bridge firmware."
-        is SocketTimeoutException -> "Bridge unreachable: request timed out."
+            English.HUE_CERTIFICATE_COULD_NOT_BE_VERIFIED
+        is SocketTimeoutException -> English.BRIDGE_UNREACHABLE_REQUEST_TIMED_OUT
         else -> error.message?.take(180) ?: error.javaClass.simpleName
     }
 }

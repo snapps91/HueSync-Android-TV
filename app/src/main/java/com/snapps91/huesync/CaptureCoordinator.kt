@@ -49,7 +49,7 @@ internal class CaptureCoordinator(
         if (!isActive() || closed) return
 
         // The projection token is single-use, including when GPU setup fails.
-        val surface = initialSurface ?: rgbaSampler?.surface ?: error("Capture surface unavailable")
+        val surface = initialSurface ?: rgbaSampler?.surface ?: error(English.CAPTURE_SURFACE_UNAVAILABLE)
         virtualDisplay = projection.createVirtualDisplay(
             "HueSync", CAPTURE_WIDTH, height, metrics.densityDpi,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, surface, null, handler
@@ -72,12 +72,12 @@ internal class CaptureCoordinator(
             receivedFrame = false
             val surface = CompatibilityColorSampler(
                 area.channels, options, handler, ::receiveFrame,
-                { onFailure("Capture unavailable: ${UserMessage.from(it)}") }
+                { onFailure(English.captureUnavailable(UserMessage.from(it))) }
             ).also { rgbaSampler = it }.open(CAPTURE_WIDTH, height)
             virtualDisplay?.surface = surface
-            watchFirstFrame { onFailure("No frame received from Android") }
+            watchFirstFrame { onFailure(English.NO_FRAME_RECEIVED_FROM_ANDROID) }
         } catch (e: Exception) {
-            onFailure("Capture unavailable: ${UserMessage.from(e)}")
+            onFailure(English.captureUnavailable(UserMessage.from(e)))
         }
     }
 

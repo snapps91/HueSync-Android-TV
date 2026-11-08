@@ -37,7 +37,7 @@ class SyncSettings(context: Context) {
         val encrypted = cipher.doFinal(json.toString().toByteArray(Charsets.UTF_8))
         val encoded = Base64.encodeToString(cipher.iv + encrypted, Base64.NO_WRAP)
         check(prefs.edit().putString("credentials", encoded).remove("area").commit()) {
-            "Could not save Bridge pairing"
+            English.COULD_NOT_SAVE_BRIDGE_PAIRING
         }
     }
 

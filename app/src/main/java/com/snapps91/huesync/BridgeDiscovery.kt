@@ -26,7 +26,7 @@ class BridgeDiscovery(
         override fun onServiceLost(info: NsdServiceInfo) = Unit
         override fun onStartDiscoveryFailed(type: String, code: Int) {
             close()
-            error("Discovery unavailable ($code). Enter the Bridge IP address.")
+            error(English.discoveryUnavailable(code))
         }
         override fun onStopDiscoveryFailed(type: String, code: Int) = Unit
         override fun onServiceFound(info: NsdServiceInfo) = synchronized(pending) {
@@ -67,7 +67,7 @@ class BridgeDiscovery(
             nsd.discoverServices("_hue._tcp.", NsdManager.PROTOCOL_DNS_SD, listener)
         } catch (e: Exception) {
             close()
-            error("Discovery failed. Enter the local IP address.")
+            error(English.DISCOVERY_FAILED_ENTER_THE_LOCAL_IP)
         }
     }
 

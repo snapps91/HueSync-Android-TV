@@ -9,7 +9,7 @@ Use this file as a navigation map, not as a substitute for the source code. Keep
 - GPU shader: `GpuColorSampler.kt`; RGBA capture: `CompatibilityColorSampler.kt`; RGBA kernel: `RgbaMacroSampler.kt`; frame pacing: `FrameCadence.kt`
 - Channel and status models: `SyncModels.kt`; HueStream packet layout: `HuePacket.kt`; color filter: `ColorFilter.kt`
 - Bridge HTTPS API and certificate checks: `HueApi.kt`; mDNS discovery: `BridgeDiscovery.kt`; DTLS transport: `HueStream.kt`
-- Encrypted credentials and preferences: `SyncSettings.kt`; user-facing error text: `UserMessage.kt`; manifest and build configuration: `app/src/main/AndroidManifest.xml`, `app/build.gradle.kts`
+- Encrypted credentials and preferences: `SyncSettings.kt`; English user-facing text: `English.kt`; error selection: `UserMessage.kt`; manifest and build configuration: `app/src/main/AndroidManifest.xml`, `app/build.gradle.kts`
 - Tests: `app/src/test`, `app/src/sharedTest`, `app/src/androidTest`
 - CI build, JVM tests, and signed tag releases: `.github/workflows/android.yml`; release signing is configured from environment variables in `app/build.gradle.kts`
 

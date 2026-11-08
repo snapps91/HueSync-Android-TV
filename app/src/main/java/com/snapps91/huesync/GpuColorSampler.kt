@@ -78,7 +78,7 @@ class GpuColorSampler(
     private fun initializeEgl() {
         display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
         check(display != EGL14.EGL_NO_DISPLAY && EGL14.eglInitialize(display, null, 0, null, 0)) {
-            "EGL is unavailable"
+            English.EGL_IS_UNAVAILABLE
         }
         val configs = arrayOfNulls<EGLConfig>(1)
         val count = IntArray(1)
@@ -95,10 +95,10 @@ class GpuColorSampler(
         pbuffer = EGL14.eglCreatePbufferSurface(display, config,
             intArrayOf(EGL14.EGL_WIDTH, channels.size, EGL14.EGL_HEIGHT, 1, EGL14.EGL_NONE), 0)
         check(context != EGL14.EGL_NO_CONTEXT && pbuffer != EGL14.EGL_NO_SURFACE &&
-            EGL14.eglMakeCurrent(display, pbuffer, pbuffer, context)) { "Could not initialize the GPU" }
+            EGL14.eglMakeCurrent(display, pbuffer, pbuffer, context)) { English.COULD_NOT_INITIALIZE_THE_GPU }
         renderer = glGetString(GL_RENDERER) ?: "OpenGL ES"
         check(glGetString(GL_EXTENSIONS)?.contains("GL_OES_EGL_image_external") == true) {
-            "GPU does not support OES textures"
+            English.GPU_DOES_NOT_SUPPORT_OES_TEXTURES
         }
     }
 
@@ -124,7 +124,7 @@ class GpuColorSampler(
         glDeleteShader(fragment)
         val linked = IntArray(1)
         glGetProgramiv(program, GL_LINK_STATUS, linked, 0)
-        check(linked[0] != 0) { "Shader GPU: ${glGetProgramInfoLog(program)}" }
+        check(linked[0] != 0) { English.shaderGpu(glGetProgramInfoLog(program)) }
         glUseProgram(program)
         glUniform1i(glGetUniformLocation(program, "uTexture"), 0)
         transformLocation = glGetUniformLocation(program, "uTransform")
@@ -198,7 +198,7 @@ class GpuColorSampler(
         glReadPixels(0, 0, channels.size, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixels)
         drawReadbackMs = (SystemClock.elapsedRealtimeNanos() - acquiredAt) / 1_000_000f
         val error = glGetError()
-        check(error == GL_NO_ERROR) { "GPU readback failed ($error)" }
+        check(error == GL_NO_ERROR) { English.gpuReadback(error) }
         for (i in channels.indices) for (component in 0..2)
             raw[i * 3 + component] = decode[pixels.get(i * 4 + component).toInt() and 255]
         analyzedFrames++
@@ -210,7 +210,7 @@ class GpuColorSampler(
         val status = IntArray(1); glGetShaderiv(shader, GL_COMPILE_STATUS, status, 0)
         if (status[0] == 0) {
             val log = glGetShaderInfoLog(shader); glDeleteShader(shader)
-            error("Shader compilation failed: $log")
+            error(English.shaderCompilation(log))
         }
         return shader
     }
