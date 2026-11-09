@@ -13,6 +13,8 @@ running.
 The app does not record or transmit video. Screen capture is processed on the TV;
 the Bridge receives only the RGB values for the Entertainment area's channels.
 
+![HueSync running on Android TV](docs/images/huesync_android_tv.png)
+
 ## Requirements
 
 - An Android TV device running Android 6.0 (API 23) or later, with OpenGL ES 2.0.
