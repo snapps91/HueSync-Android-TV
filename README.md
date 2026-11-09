@@ -170,7 +170,7 @@ compiles Android instrumentation tests. Instrumentation tests still need an
 Android device or emulator and are not executed by this workflow. The debug APK
 is available as a workflow artifact.
 
-Pushing a tag such as `v0.0.1` also builds a signed release APK and attaches it
+Pushing a tag such as `v0.0.2` also builds a signed release APK and attaches it
 to a GitHub Release, after the build and tests pass. The tag (with an optional
 `v` prefix) must match `versionName` in `app/build.gradle.kts`. Update
 `versionCode` for each release as well.
