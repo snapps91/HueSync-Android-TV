@@ -1,6 +1,7 @@
 package com.snapps91.huesync
 
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import kotlin.math.exp
 import kotlin.math.floor
 import kotlin.math.pow
@@ -64,24 +65,38 @@ internal class RgbaMacroSampler(
         require(pixelStride >= 4 && rowStride >= imageWidth * pixelStride)
         require(buffer.limit() >= (imageHeight - 1) * rowStride + (imageWidth - 1) * pixelStride + 4)
         updateByteOffsets(rowStride, pixelStride)
+        // Absolute packed reads preserve the caller's position and byte order.
+        val littleEndian = buffer.order() == ByteOrder.LITTLE_ENDIAN
+        val redShift = if (littleEndian) 0 else 24
+        val greenShift = if (littleEndian) 8 else 16
+        val blueShift = if (littleEndian) 16 else 8
         raw.fill(0f)
         for (channel in 0 until raw.size / 3) for (tap in 0 until TAPS_PER_CHANNEL) {
             val index = channel * TAPS_PER_CHANNEL + tap
             val base = index * 4
-            for (component in 0..2) {
-                var srgb = 0f
-                for (corner in 0..3) {
-                    val offset = byteOffsets[base + corner] + component
-                    srgb += (buffer.get(offset).toInt() and 255) * weights[base + corner]
-                }
-                // Preserve bilinear interpolation before linearizing, as in the OES shader.
-                val low = srgb.toInt().coerceIn(0, 255)
-                val high = (low + 1).coerceAtMost(255)
-                val linear = decode[low] + (decode[high] - decode[low]) * (srgb - low)
-                raw[channel * 3 + component] += linear * tapWeights[index]
+            var red = 0f
+            var green = 0f
+            var blue = 0f
+            for (corner in 0..3) {
+                val pixel = buffer.getInt(byteOffsets[base + corner])
+                val weight = weights[base + corner]
+                red += ((pixel ushr redShift) and 255) * weight
+                green += ((pixel ushr greenShift) and 255) * weight
+                blue += ((pixel ushr blueShift) and 255) * weight
             }
+            val weight = tapWeights[index]
+            raw[channel * 3] += linearize(red) * weight
+            raw[channel * 3 + 1] += linearize(green) * weight
+            raw[channel * 3 + 2] += linearize(blue) * weight
         }
         return raw
+    }
+
+    private fun linearize(srgb: Float): Float {
+        // Preserve bilinear interpolation before linearizing, as in the OES shader.
+        val low = srgb.toInt().coerceIn(0, 255)
+        val high = (low + 1).coerceAtMost(255)
+        return decode[low] + (decode[high] - decode[low]) * (srgb - low)
     }
 
     private fun updateByteOffsets(rowStride: Int, pixelStride: Int) {

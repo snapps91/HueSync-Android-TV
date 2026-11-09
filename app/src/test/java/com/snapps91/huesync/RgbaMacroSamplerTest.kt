@@ -3,6 +3,7 @@ package com.snapps91.huesync
 import org.junit.Assert.*
 import org.junit.Test
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 class RgbaMacroSamplerTest {
     private fun plane(width: Int, height: Int, padding: Int, pixelStride: Int,
@@ -56,6 +57,31 @@ class RgbaMacroSamplerTest {
     @Test fun rejectsTruncatedPlanesInsteadOfReadingOutsideTheBuffer() {
         assertThrows(IllegalArgumentException::class.java) {
             RgbaMacroSampler(32,18,listOf(HueChannel(0,0f,0f)),0f).sample(ByteBuffer.allocate(12),128,4)
+        }
+    }
+    @Test fun packedReadsPreserveColorsAndBufferStateAcrossByteOrdersAndViews() {
+        val channels = List(20) { HueChannel(it, (it % 5) / 2f - 1f, (it / 5) / 1.5f - 1f) }
+        val sampler = RgbaMacroSampler(37,23,channels,.08f)
+        val (source, stride) = plane(37,23,17,8) { x,y ->
+            ((x * 7 % 256) shl 16) or ((y * 11 % 256) shl 8) or ((x * 3 + y * 5) % 256)
+        }
+        val expected = sampler.sample(source,stride,8).copyOf()
+        // Exercise unaligned direct storage, including a final row without trailing padding.
+        val size = 22 * stride + 36 * 8 + 4
+        val storage = ByteBuffer.allocateDirect(size + 1)
+        storage.position(1)
+        val view = storage.slice()
+        for (i in 0 until size) view.put(i,source.get(i))
+        // Alpha is unrelated to the sampled RGB values.
+        for (y in 0 until 23) for (x in 0 until 37) view.put(y * stride + x * 8 + 3,0)
+        for (buffer in listOf(view,view.asReadOnlyBuffer())) {
+            for (order in listOf(ByteOrder.BIG_ENDIAN,ByteOrder.LITTLE_ENDIAN)) {
+                buffer.order(order).position(3)
+                assertArrayEquals(expected,sampler.sample(buffer,stride,8),0f)
+                assertEquals(3,buffer.position())
+                assertEquals(size,buffer.limit())
+                assertEquals(order,buffer.order())
+            }
         }
     }
 }
