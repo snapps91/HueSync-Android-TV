@@ -6,6 +6,26 @@ import kotlin.math.exp
 import kotlin.math.pow
 
 class WorkloadRegressionTest {
+    @Test fun lightTransitionsContinueBetweenSparseCaptureSnapshots() {
+        val filter = ColorFilter(1)
+        val options = SyncOptions(brightness=1f, saturation=1f, smoothingMs=100)
+        filter.apply(FloatArray(3), 1_000_000_000L, options)
+        val capturedRed = floatArrayOf(1f, 0f, 0f)
+        val first = filter.apply(capturedRed, 1_033_333_333L, options)
+        val saved = first.copyOf()
+        var latest = first
+        // No new capture frames: the stream keeps advancing the same target for one second.
+        repeat(30) { i ->
+            val next = filter.apply(capturedRed, 1_066_666_666L + i * 33_333_333L, options)
+            assertTrue(next[0] >= latest[0])
+            latest = next
+        }
+        assertTrue(first[0] < .3f)
+        assertTrue(latest[0] > .999f)
+        assertArrayEquals(saved, first, 0f)
+        assertArrayEquals(floatArrayOf(1f, 0f, 0f), capturedRed, 0f)
+    }
+
     @Test fun coalescingKeepsThirtyDeadlinesPerSecondWithoutDrift() {
         val cadence = FrameCadence(30)
         val start = 1_000_000_000L

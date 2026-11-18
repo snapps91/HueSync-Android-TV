@@ -28,18 +28,20 @@ class CompatibilitySamplerTest {
             try {
                 val channels = listOf(HueChannel(0,-1f,1f),HueChannel(1,1f,1f),
                     HueChannel(2,-1f,-1f),HueChannel(3,1f,-1f))
-                sampler = CompatibilityColorSampler(channels,SyncOptions(invertHorizontal=inverted),handler,
+                val options = SyncOptions(invertHorizontal=inverted)
+                sampler = CompatibilityColorSampler(channels,options,handler,
                     { raw,_,_ -> result.set(raw.copyOf()); completed.countDown() },
                     { failure.set(it); completed.countDown() })
-                val surface = sampler!!.open(384,216)
+                val surface = sampler!!.open(options.captureWidth,options.captureWidth*9/16)
                 val canvas = surface.lockCanvas(null)
                 val paint = Paint()
                 val colors = intArrayOf(Color.RED,Color.GREEN,Color.BLUE,Color.WHITE)
                 if (black) canvas.drawColor(Color.BLACK)
                 else for(i in 0..3) {
                     paint.color = colors[i]
-                    val x = (i%2)*192f; val y=(i/2)*108f
-                    canvas.drawRect(x,y,x+192,y+108,paint)
+                    val w = canvas.width/2f; val h = canvas.height/2f
+                    val x = (i%2)*w; val y=(i/2)*h
+                    canvas.drawRect(x,y,x+w,y+h,paint)
                 }
                 surface.unlockCanvasAndPost(canvas)
             } catch(e: Throwable) { failure.set(e); completed.countDown() }

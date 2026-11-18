@@ -5,8 +5,8 @@ Use this file as a navigation map, not as a substitute for the source code. Keep
 ## Find the relevant code first
 
 - Pairing flow, discovery, capture consent: `app/src/main/java/com/snapps91/huesync/MainActivity.kt`; controls and status rendering: `MainScreen.kt`
-- Foreground lifecycle, DTLS scheduling, ownership checks: `SyncService.kt`; VirtualDisplay and capture fallback: `CaptureCoordinator.kt`
-- GPU shader: `GpuColorSampler.kt`; RGBA capture: `CompatibilityColorSampler.kt`; RGBA kernel: `RgbaMacroSampler.kt`; frame pacing: `FrameCadence.kt`
+- Foreground lifecycle, DTLS scheduling, stream-rate color smoothing, ownership checks: `SyncService.kt`; VirtualDisplay and capture fallback: `CaptureCoordinator.kt`
+- GPU shader: `GpuColorSampler.kt`; single-transfer ES3 readback: `GpuReadback.kt`; RGBA capture: `CompatibilityColorSampler.kt`; RGBA kernel: `RgbaMacroSampler.kt`; fixed/adaptive frame pacing: `FrameCadence.kt`
 - Channel and status models: `SyncModels.kt`; HueStream packet layout: `HuePacket.kt`; color filter: `ColorFilter.kt`
 - Bridge HTTPS API and certificate checks: `HueApi.kt`; mDNS discovery: `BridgeDiscovery.kt`; DTLS transport: `HueStream.kt`
 - Encrypted credentials and preferences: `SyncSettings.kt`; English user-facing text: `English.kt`; error selection: `UserMessage.kt`; manifest and build configuration: `app/src/main/AndroidManifest.xml`, `app/build.gradle.kts`
@@ -17,8 +17,9 @@ Start with `rg` to locate the affected symbol, then read only the relevant files
 
 ## Behavioral constraints
 
-- Capture the TV's own display only with Android MediaProjection consent. One session uses one VirtualDisplay; GPU is the initial sampler and ImageReader RGBA is its single fallback.
-- Keep frame analysis separate from DTLS sending. Publish complete color snapshots; do not add a frame backlog or mutate a snapshot while the network thread reads it.
+- Capture the TV's own display only with Android MediaProjection consent. One session uses one VirtualDisplay; GPU is the initial sampler and ImageReader RGBA is its single fallback, triggered by failure or the live compatibility button. Switching is one-way within a session and does not renew consent.
+- Video priority defaults to 128-pixel capture, 24 taps per channel, and adaptive 10–20 fps analysis; disabling it restores 384 pixels, 96 taps, and the selected cadence. The video-priority GPU path samples by deadline during motion and rearms notifications on idle. ES3 readback has at most one transfer in flight, with nonblocking fence checks; unavailable ES3 initialization falls back to ES2 before RGBA.
+- Keep frame analysis separate from DTLS sending. Color filtering and smoothing belong to the network thread and advance at stream cadence, independently of capture. Publish complete color snapshots; do not add a frame backlog or mutate a snapshot while the network thread reads it.
 - Preserve channel IDs, the maximum of 20 channels, and the HueStream 2.0 packet format when changing sampling or color math.
 - Keep Bridge communication local: verified Hue HTTPS for the API and DTLS 1.2 PSK for the stream. Keep pairing secrets encrypted with Android Keystore and out of logs and documentation.
 - Do not claim DRM, secure content, HDMI, or other devices can be captured through this app.

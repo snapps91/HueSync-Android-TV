@@ -64,21 +64,47 @@ Android MediaProjection
 ### Capture and color sampling
 
 When a session starts, Android displays its system consent prompt. HueSync creates
-one `MediaProjection` session and one `VirtualDisplay`, sized to 384 pixels wide
-with the display's aspect ratio. The default analyzer is an EGL/OpenGL ES 2.0
-pipeline. A `SurfaceTexture` receives the display frames as an external OES
-texture. A fragment shader samples 96 weighted points for each Entertainment
-channel, averages them in linear light, and renders one output pixel per channel
-to an N × 1 pbuffer. The CPU reads back only those channel pixels, not full TV
-frames.
+one `MediaProjection` session and one `VirtualDisplay` with the display's aspect
+ratio. **Prioritize video playback** is enabled by default. It captures at 128
+pixels wide (128 × 72 on a 16:9 TV) and samples 24 weighted points per channel.
+Turning it off restores 384 pixels wide and 96 points per channel for higher
+spatial detail. Lower resolution and fewer points can miss small colored details;
+use the test pattern and actual content to choose the preferred tradeoff.
 
-Frame notifications are coalesced before texture acquisition. The analyzer samples
-the newest available frame at the selected cadence (20, 30, or 50 fps); these are
-targets and actual rates depend on the device and content. Up to 20 channels are
-supported, including gradient segments reported by the Bridge. Hue channel x and
-z coordinates map to horizontal and vertical screen positions; room depth does
-not affect the projection. Horizontal inversion and top/bottom crop can be
-adjusted.
+A `SurfaceTexture` receives display frames as an external OES texture. A fragment
+shader averages each channel's region in linear light and renders one pixel per
+channel to an N × 1 pbuffer. The CPU reads only those channel pixels, at most 80
+bytes, rather than full TV frames.
+
+With video priority enabled, HueSync first tries OpenGL ES 3 with asynchronous
+pixel-buffer readback. Only one transfer can be in flight. Completion checks never
+wait on a GPU fence and back off while the GPU is busy. The next acquisition
+waits until the transfer completes. A transfer still incomplete after
+500 ms triggers the RGBA fallback. If ES3 initialization is unavailable, the app
+uses the OpenGL ES 2 synchronous path. Turning video priority off also uses ES2.
+The renderer status identifies asynchronous or synchronous readback. Acquisition
+and draw/readback diagnostics are wall times; asynchronous readback includes
+completion polling delay and is not a GPU execution-time measurement.
+
+During continuous video, the GPU sampler acquires the latest texture at each
+analysis deadline without handling a notification for every producer frame.
+When the texture stops changing it returns to waiting for a frame notification.
+The lightweight shader uses precomputed sample offsets and weights. On drivers
+that support GPU context priority, sampling requests low priority.
+
+Video priority starts analysis at up to 20 fps, bounded by the selected stream
+rate. Three consecutive samples costing over 10% of the sampling interval lower
+the target in steps of 5 fps, down to 10 fps. Two seconds of inexpensive samples
+with headroom at the next rate allow gradual recovery. This uses the sampler's
+wall time, not the video player's FPS or total TV load. Without video priority,
+analysis follows the selected stream cadence (20, 30, or 50 fps). These are targets;
+actual rates depend on the device and content. Limiting analysis does not guarantee
+that Android's compositor produces fewer capture frames.
+
+Up to 20 channels are supported, including gradient segments reported by the
+Bridge. Hue channel x and z coordinates map to horizontal and vertical screen
+positions; room depth does not affect the projection. Horizontal inversion and
+top/bottom crop can be adjusted.
 
 If GPU initialization or analysis fails, or no first frame arrives within eight
 seconds, HueSync switches once to an `ImageReader` RGBA analyzer. It reuses the
@@ -88,10 +114,21 @@ the RGBA image without creating a bitmap. If the fallback cannot produce a frame
 the session stops with an error. A black frame by itself does not trigger a
 fallback because it can be a genuinely dark scene or protected content.
 
-For each channel, sampled RGB is linearized, adjusted for saturation and
-brightness, converted for Hue output, and smoothed over time. The available
-controls include stream cadence, brightness, saturation, smoothing, vertical
-crop, and horizontal inversion. The Bridge's channel positions and IDs are used
+For visible disturbances that do not report a capture error, choose **Try
+compatibility capture** while synchronization is running. This switches once to
+the same RGBA fallback, without creating another VirtualDisplay or requesting
+capture consent again. It may use more CPU and is not a guaranteed fix for
+firmware-related video tearing: Android still composes the captured screen.
+Restart synchronization to return to the initial GPU path. This choice applies
+only to the current session.
+
+Sampling publishes complete, immutable linear RGB snapshots. The stream thread
+adjusts saturation and brightness, converts for Hue output, and advances time-based
+smoothing at the selected stream cadence, independently of new capture frames.
+Light transitions therefore continue during sparse or static capture. This cannot
+recover scene changes between samples. The available controls include video
+priority, stream cadence, brightness, saturation, smoothing, vertical crop, and
+horizontal inversion. The Bridge's channel positions and IDs are used
 to associate each color with its light or gradient segment.
 
 ### Hue connection and streaming
@@ -112,8 +149,8 @@ owns the area every three seconds and stops if ownership is lost.
 Streaming runs on a separate network thread, so network operations do not block
 frame analysis. It sends HueStream 2.0 packets using DTLS 1.2 with the
 `TLS_PSK_WITH_AES_128_GCM_SHA256` cipher suite. Keepalive packets repeat the last
-colors when the image is static. There is no frame backlog or catch-up burst when
-the network is slow. When Android reports captured content as not visible, the
+colors once the transition has settled on a static image. There is no frame backlog
+or catch-up burst when the network is slow. When Android reports captured content as not visible, the
 stream sends dimmed colors. On shutdown, HueSync releases the Entertainment area
 if it is still the active owner.
 
@@ -144,6 +181,9 @@ if it is still the active owner.
   depend on the TV firmware and the video app.
 - The current UI accepts local IPv4 addresses. If the Bridge address changes,
   discover it again or enter its new address.
+- Video priority reduces capture detail and analysis work, but cannot guarantee
+  smooth 4K playback: capture composition, hardware support, and resource
+  contention depend on the TV firmware.
 - The automatic RGBA fallback may use more CPU than the GPU path and remains
   subject to Android's capture restrictions.
 
@@ -201,8 +241,11 @@ or Android cannot verify the APK signature.
 - `MainActivity.kt` — Bridge setup, area selection, capture consent, and user
   actions; `MainScreen.kt` — native Android TV controls and status rendering.
 - `SyncService.kt` — foreground session, Bridge ownership, DTLS scheduling, and
-  status; `CaptureCoordinator.kt` — the VirtualDisplay and capture fallback.
-- `GpuColorSampler.kt` — EGL/OpenGL ES external-texture shader pipeline.
+  status and stream-rate color smoothing; `CaptureCoordinator.kt` — the
+  VirtualDisplay, immutable capture snapshots, and capture fallback.
+- `GpuColorSampler.kt` — EGL/OpenGL ES external-texture shader pipeline;
+  `GpuReadback.kt` — one asynchronous ES3 pixel transfer; `FrameCadence.kt` — fixed
+  and adaptive analysis scheduling.
 - `CompatibilityColorSampler.kt` — ImageReader RGBA fallback;
   `RgbaMacroSampler.kt` — its weighted spatial sampler.
 - `HueApi.kt` and `BridgeDiscovery.kt` — local Bridge HTTPS API and mDNS

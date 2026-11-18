@@ -19,8 +19,13 @@ data class SyncOptions(
     val smoothingMs: Int = 100,
     val saturation: Float = 1.15f,
     val crop: Float = .08f,
-    val invertHorizontal: Boolean = true
+    val invertHorizontal: Boolean = true,
+    val prioritizeVideo: Boolean = true,
 ) {
+    internal val captureWidth: Int get() = if (prioritizeVideo) 128 else 384
+    internal val sampleColumns: Int get() = if (prioritizeVideo) 6 else 12
+    internal val sampleRows: Int get() = if (prioritizeVideo) 4 else 8
+
     init {
         require(fps in 10..50)
         require(brightness in 0f..1f)
@@ -40,7 +45,8 @@ data class SyncSnapshot(
     val colors: IntArray = intArrayOf(),
     val frames: Long = 0,
     val acquisitionMs: Float = 0f,
-    val drawReadbackMs: Float = 0f
+    val drawReadbackMs: Float = 0f,
+    val canSwitchToRgba: Boolean = false,
 )
 
 object SyncStatus {

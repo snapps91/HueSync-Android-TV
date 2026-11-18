@@ -5,30 +5,47 @@ import kotlin.math.pow
 
 /** Time-based smoothing keeps the chosen response stable when frames are dropped. */
 class ColorFilter(channels: Int) {
-    private val smoothed = FloatArray(channels * 3)
-    private val cachedRaw = FloatArray(channels * 3)
+    internal val streamColors = FloatArray(channels * 3)
+    private var publicInput: FloatArray? = null
+    private var currentInput: FloatArray? = null
+    private var settled = false
     private val target = FloatArray(channels * 3)
     private var previousNanos = 0L
     private var cachedOptions: SyncOptions? = null
     private var published = FloatArray(channels * 3)
 
     fun apply(raw: FloatArray, now: Long, options: SyncOptions): FloatArray {
-        require(raw.size == smoothed.size)
-        val elapsedSeconds = if (previousNanos == 0L) 1.0 else (now - previousNanos).coerceAtLeast(0) / 1e9
-        val alpha = if (options.smoothingMs == 0) 1f else
-            (1 - exp(-elapsedSeconds * 1000 / options.smoothingMs)).toFloat()
-        previousNanos = now
-
-        if (cachedOptions != options || !raw.contentEquals(cachedRaw)) {
-            raw.copyInto(cachedRaw)
-            cachedOptions = options
-            updateTarget(raw, options)
-        }
-        for (i in smoothed.indices) smoothed[i] += (target[i] - smoothed[i]) * alpha
-
-        // The DTLS thread may still read the previous result; publish a new array only when it changes.
-        if (!smoothed.contentEquals(published)) published = smoothed.copyOf()
+        // The public API accepts reusable input arrays and returns immutable snapshots.
+        val input = publicInput?.takeIf { it.contentEquals(raw) } ?: raw.copyOf().also { publicInput = it }
+        advanceSnapshot(input, now, options)
+        if (!published.contentEquals(streamColors)) published = streamColors.copyOf()
         return published
+    }
+
+    /** Network-thread path: capture publishes immutable inputs; output never leaves this thread. */
+    internal fun advanceSnapshot(raw: FloatArray, now: Long, options: SyncOptions): Boolean {
+        require(raw.size == streamColors.size)
+        val previous = previousNanos
+        previousNanos = now
+        if (raw !== currentInput || options != cachedOptions) {
+            updateTarget(raw, options)
+            currentInput = raw
+            cachedOptions = options
+        } else if (settled) return false
+
+        val elapsed = if (previous == 0L) 1.0 else (now - previous).coerceAtLeast(0) / 1e9
+        val alpha = if (options.smoothingMs == 0) 1f else
+            (1 - exp(-elapsed * 1000 / options.smoothingMs)).toFloat()
+        var changed = false
+        settled = true
+        for (i in streamColors.indices) {
+            val old = streamColors[i]
+            val value = old + (target[i] - old) * alpha
+            streamColors[i] = value
+            if (value != old) changed = true
+            if (value != target[i]) settled = false
+        }
+        return changed
     }
 
     private fun updateTarget(raw: FloatArray, options: SyncOptions) {

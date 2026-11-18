@@ -6,6 +6,20 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 class RgbaMacroSamplerTest {
+    @Test fun reducedKernelPreservesSmoothColorsCropAndCalibrationAtAllChannelPositions() {
+        val width = 128
+        val height = 72
+        val channels = List(20) { HueChannel(it, (it % 5) / 2f - 1f, (it / 5) / 1.5f - 1f) }
+        val (buffer, stride) = plane(width, height, 17, 8) { x, y ->
+            ((x * 255 / (width - 1)) shl 16) or ((y * 255 / (height - 1)) shl 8) or 128
+        }
+        for (crop in listOf(0f, .2f)) for (inverted in listOf(false, true)) {
+            val reference = RgbaMacroSampler(width,height,channels,crop,inverted).sample(buffer,stride,8)
+            val reduced = RgbaMacroSampler(width,height,channels,crop,inverted,6,4).sample(buffer,stride,8)
+            assertArrayEquals(reference, reduced, .01f)
+        }
+    }
+
     private fun plane(width: Int, height: Int, padding: Int, pixelStride: Int,
         pixel: (Int,Int) -> Int): Pair<ByteBuffer,Int> {
         val stride = width * pixelStride + padding

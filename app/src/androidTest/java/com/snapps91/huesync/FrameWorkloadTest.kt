@@ -16,6 +16,14 @@ import java.util.concurrent.atomic.AtomicReference
 @RunWith(AndroidJUnit4::class)
 class FrameWorkloadTest {
     @Test fun sixtyHzProducerDoesNotForceSixtyTextureAcquisitionsAtThirtyFps() {
+        exerciseProducer(prioritizeVideo = false)
+    }
+
+    @Test fun videoPriorityCapsAnalysisWhileTheProducerKeepsRunningAtSixtyHz() {
+        exerciseProducer(prioritizeVideo = true)
+    }
+
+    private fun exerciseProducer(prioritizeVideo: Boolean) {
         val gpuThread = HandlerThread("Gpu-cadence-test").apply { start() }
         val producerThread = HandlerThread("Surface-producer-test").apply { start() }
         val gpu = Handler(gpuThread.looper)
@@ -27,12 +35,14 @@ class FrameWorkloadTest {
         var acquired = 0L
         var analyzed = 0L
         var totalAnalysisMs = 0.0
+        var renderer = ""
         gpu.post {
             try {
                 sampler = GpuColorSampler(List(10) { HueChannel(it, it / 5f - 1f, 0f) },
-                    SyncOptions(fps=30), gpu, { _, ms, _ -> totalAnalysisMs += ms },
+                    SyncOptions(fps=30, prioritizeVideo=prioritizeVideo), gpu,
+                    { _, ms, device -> totalAnalysisMs += ms; renderer = device },
                     { failure.set(it); done.countDown() })
-                val surface = sampler!!.open(384,216)
+                val surface = sampler!!.open(if (prioritizeVideo) 128 else 384, if (prioritizeVideo) 72 else 216)
                 val start = SystemClock.uptimeMillis()
                 producer.post(object : Runnable {
                     override fun run() {
@@ -55,11 +65,13 @@ class FrameWorkloadTest {
         try {
             assertTrue("Frame producer did not finish", done.await(15, TimeUnit.SECONDS))
             failure.get()?.let { throw AssertionError("GPU cadence failed", it) }
-            Log.i("HueSyncPerf", "producer=$generated acquired=$acquired analyzed=$analyzed meanAnalysisMs=${totalAnalysisMs / analyzed}")
+            Log.i("HueSyncPerf", "videoPriority=$prioritizeVideo renderer=$renderer producer=$generated acquired=$acquired analyzed=$analyzed meanAnalysisMs=${totalAnalysisMs / analyzed}")
             assertEquals(120, generated)
-            assertEquals("Each acquisition must be useful", analyzed, acquired)
-            assertTrue("Texture work was not coalesced", acquired < generated * .75)
-            assertTrue("Sampler stopped responding", analyzed >= 30)
+            // Video priority probes for a fresh timestamp before sleeping on a static image.
+            if (prioritizeVideo) assertTrue(analyzed <= acquired)
+            else assertEquals(analyzed, acquired)
+            assertTrue("Texture work was not coalesced", acquired < generated * if (prioritizeVideo) .5 else .75)
+            assertTrue("Sampler stopped responding", analyzed >= if (prioritizeVideo) 15 else 30)
         } finally {
             producer.removeCallbacksAndMessages(null)
             producerThread.quitSafely()

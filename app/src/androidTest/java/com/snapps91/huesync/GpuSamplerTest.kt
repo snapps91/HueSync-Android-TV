@@ -1,6 +1,7 @@
 package com.snapps91.huesync
 
 import android.graphics.Canvas
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Paint
 import android.os.Handler
@@ -12,6 +13,7 @@ import org.junit.runner.RunWith
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+import java.nio.ByteBuffer
 
 @RunWith(AndroidJUnit4::class)
 class GpuSamplerTest {
@@ -26,7 +28,7 @@ class GpuSamplerTest {
             try {
                 sampler = GpuColorSampler(channels, options, handler,
                     { rgb, _, _ -> result.set(rgb.copyOf()); latch.countDown() }, { failure.set(it); latch.countDown() })
-                val surface = sampler!!.open(384,216)
+                val surface = sampler!!.open(options.captureWidth, options.captureWidth * 9 / 16)
                 val canvas = surface.lockCanvas(null)
                 draw(canvas)
                 surface.unlockCanvasAndPost(canvas)
@@ -55,8 +57,9 @@ class GpuSamplerTest {
             val colors = intArrayOf(Color.RED,Color.GREEN,Color.BLUE,Color.WHITE)
             for (i in 0..3) {
                 paint.color = colors[i]
-                val x = (i % 2) * 192f; val y = (i / 2) * 108f
-                canvas.drawRect(x,y,x+192,y+108,paint)
+                val w = canvas.width / 2f; val h = canvas.height / 2f
+                val x = (i % 2) * w; val y = (i / 2) * h
+                canvas.drawRect(x,y,x+w,y+h,paint)
             }
         }
         assertArrayEquals(floatArrayOf(1f,0f,0f, 0f,1f,0f, 0f,0f,1f, 1f,1f,1f), rgb, .03f)
@@ -69,11 +72,37 @@ class GpuSamplerTest {
             val colors = intArrayOf(Color.RED,Color.GREEN,Color.BLUE,Color.WHITE)
             for (i in 0..3) {
                 paint.color = colors[i]
-                val x=(i%2)*192f; val y=(i/2)*108f
-                canvas.drawRect(x,y,x+192,y+108,paint)
+                val w = canvas.width / 2f; val h = canvas.height / 2f
+                val x=(i%2)*w; val y=(i/2)*h
+                canvas.drawRect(x,y,x+w,y+h,paint)
             }
         }
         assertArrayEquals(floatArrayOf(0f,1f,0f, 1f,0f,0f, 1f,1f,1f, 0f,0f,1f),rgb,.03f)
+    }
+
+    @Test fun bothGpuProfilesMatchTheRgbaKernelAcrossTwentyChannels() {
+        val channels = List(20) { HueChannel(it, (it % 5) / 2f - 1f, (it / 5) / 1.5f - 1f) }
+        for (priority in listOf(true, false)) {
+            val options = SyncOptions(crop=.2f, invertHorizontal=true, prioritizeVideo=priority)
+            val width = options.captureWidth
+            val height = width * 9 / 16
+            val rgba = ByteBuffer.allocate(width * height * 4)
+            val argb = IntArray(width * height) { index ->
+                val x = index % width
+                val y = index / width
+                val r = x * 255 / (width - 1)
+                val g = y * 255 / (height - 1)
+                rgba.put(r.toByte()).put(g.toByte()).put(128.toByte()).put(255.toByte())
+                Color.rgb(r, g, 128)
+            }
+            val bitmap = Bitmap.createBitmap(argb, width, height, Bitmap.Config.ARGB_8888)
+            try {
+                val expected = RgbaMacroSampler(width,height,channels,options.crop,options.invertHorizontal,
+                    options.sampleColumns,options.sampleRows).sample(rgba,width*4,4)
+                val actual = sample(channels, options) { it.drawBitmap(bitmap,0f,0f,null) }
+                assertArrayEquals("GPU/RGBA mismatch for prioritizeVideo=$priority", expected, actual, .015f)
+            } finally { bitmap.recycle() }
+        }
     }
 
 }

@@ -21,9 +21,11 @@ class CompatibilityColorSampler(
 ) : Closeable {
     private var reader: ImageReader? = null
     private var kernel: RgbaMacroSampler? = null
-    private val cadence = FrameCadence(options.fps)
+    private val cadence = FrameCadence(options.fps, options.prioritizeVideo)
     private var queued = false
     private var closed = false
+    private var samplingVideo = false
+    private val onImage = ImageReader.OnImageAvailableListener { scheduleSample() }
 
     internal val surface: Surface? get() = reader?.surface
 
@@ -31,15 +33,32 @@ class CompatibilityColorSampler(
         queued = false
         if (closed) return@Runnable
         try {
-            reader?.acquireLatestImage()?.use { image ->
-                val started = SystemClock.elapsedRealtimeNanos()
-                cadence.sampled(started)
+            val started = SystemClock.elapsedRealtimeNanos()
+            val current = reader ?: return@Runnable
+            val latest = current.acquireLatestImage()
+            cadence.sampled(started)
+            if (latest == null) {
+                if (samplingVideo) {
+                    samplingVideo = false
+                    current.setOnImageAvailableListener(onImage, handler)
+                    scheduleSample() // Cover a frame arriving before the listener was rearmed.
+                }
+                return@Runnable
+            }
+            latest.use { image ->
+                if (options.prioritizeVideo && !samplingVideo) {
+                    samplingVideo = true
+                    current.setOnImageAvailableListener(null, null)
+                }
                 val plane = image.planes.first()
                 val sampler = checkNotNull(kernel)
                 val colors = sampler.sample(plane.buffer, plane.rowStride, plane.pixelStride)
-                onColor(colors, (SystemClock.elapsedRealtimeNanos() - started) / 1_000_000f,
+                val completed = SystemClock.elapsedRealtimeNanos()
+                cadence.completed(completed - started, completed)
+                onColor(colors, (completed - started) / 1_000_000f,
                     English.IMAGEREADER_RGBA_COMPATIBILITY)
             }
+            if (samplingVideo) scheduleSample()
         } catch (e: Exception) {
             onError(e)
         }
@@ -47,10 +66,11 @@ class CompatibilityColorSampler(
 
     fun open(width: Int, height: Int): Surface {
         check(reader == null && !closed)
-        kernel = RgbaMacroSampler(width, height, channels, options.crop, options.invertHorizontal)
+        kernel = RgbaMacroSampler(width, height, channels, options.crop, options.invertHorizontal,
+            options.sampleColumns, options.sampleRows)
         val current = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 3)
         reader = current
-        current.setOnImageAvailableListener({ scheduleSample() }, handler)
+        current.setOnImageAvailableListener(onImage, handler)
         return current.surface
     }
 
@@ -58,7 +78,7 @@ class CompatibilityColorSampler(
         if (closed || queued) return
         queued = true
         val wait = cadence.delayNanos(SystemClock.elapsedRealtimeNanos())
-        if (wait == 0L) sampleLatest.run()
+        if (wait == 0L) handler.post(sampleLatest)
         else handler.postDelayed(sampleLatest, (wait + 999_999L) / 1_000_000L)
     }
 

@@ -28,6 +28,7 @@ internal class MainScreen(
     interface Actions {
         fun onStartSync()
         fun onStopSync()
+        fun onUseCompatibilityCapture()
         fun onReturnToTv()
         fun onSearchNetwork()
         fun onPairBridge()
@@ -57,12 +58,14 @@ internal class MainScreen(
     private lateinit var areaChoice: Spinner
     private lateinit var fpsChoice: Spinner
     private lateinit var invertHorizontal: Switch
+    private lateinit var prioritizeVideo: Switch
     private lateinit var brightness: SeekBar
     private lateinit var smoothing: SeekBar
     private lateinit var saturation: SeekBar
     private lateinit var crop: SeekBar
     private lateinit var start: Button
     private lateinit var stop: Button
+    private lateinit var compatibility: Button
     private lateinit var reload: Button
     private val setupControls = mutableListOf<View>()
 
@@ -108,7 +111,8 @@ internal class MainScreen(
         smoothingMs = smoothing.progress,
         saturation = saturation.progress / 100f,
         crop = crop.progress / 100f,
-        invertHorizontal = invertHorizontal.isChecked
+        invertHorizontal = invertHorizontal.isChecked,
+        prioritizeVideo = prioritizeVideo.isChecked,
     )
 
     fun render(snapshot: SyncSnapshot, busy: Boolean, hasCredentials: Boolean, hasArea: Boolean) {
@@ -128,12 +132,17 @@ internal class MainScreen(
 
         start.isEnabled = !snapshot.running && !busy && hasCredentials && hasArea
         stop.isEnabled = snapshot.running
+        compatibility.isEnabled = snapshot.running && snapshot.canSwitchToRgba
         setupControls.forEach { it.isEnabled = !snapshot.running && !busy }
         reload.isEnabled = hasCredentials && !snapshot.running && !busy
         renderSwatches(snapshot.colors)
     }
 
+    private var lastSwatches: IntArray? = null
+
     private fun renderSwatches(colors: IntArray) {
+        if (colors.contentEquals(lastSwatches)) return
+        lastSwatches = colors
         if (channelStrip.childCount != colors.size) {
             channelStrip.removeAllViews()
             repeat(colors.size) {
@@ -209,6 +218,9 @@ internal class MainScreen(
             addView(stop)
             addView(button(English.RETURN_TO_TV, action = actions::onReturnToTv))
         })
+        compatibility = button(English.TRY_COMPATIBILITY_CAPTURE, action = actions::onUseCompatibilityCapture)
+        addView(compatibility)
+        addView(text(English.COMPATIBILITY_CAPTURE_HELP, 12, muted))
     }
 
     private fun buildConnectionCard(): View = card().apply {
@@ -257,6 +269,15 @@ internal class MainScreen(
     private fun buildTuningCard(options: SyncOptions): View = card().apply {
         addView(text(English.TEXT_02_LIGHT_RESPONSE, 12, pink, true))
         addView(text(English.TUNE_YOUR_LIGHTS, 19, ink, true).apply { setPadding(0, dp(10), 0, dp(8)) })
+        prioritizeVideo = Switch(activity).apply {
+            text = English.PRIORITIZE_VIDEO
+            textSize = 13f
+            setTextColor(ink)
+            isChecked = options.prioritizeVideo
+            minimumHeight = dp(44)
+        }
+        addView(prioritizeVideo)
+        addView(text(English.PRIORITIZE_VIDEO_HELP, 12, muted))
         invertHorizontal = Switch(activity).apply {
             text = English.INVERT_LEFT_RIGHT
             textSize = 13f
@@ -282,7 +303,7 @@ internal class MainScreen(
             12, muted
         ))
         addView(button(English.OPEN_TEST_PATTERN, action = actions::onOpenTestPattern))
-        setupControls.addAll(listOf(invertHorizontal, fpsChoice, brightness, smoothing, saturation, crop))
+        setupControls.addAll(listOf(prioritizeVideo, invertHorizontal, fpsChoice, brightness, smoothing, saturation, crop))
     }
 
     private fun slider(

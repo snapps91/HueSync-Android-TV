@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class SyncService : Service() {
     private val alive = AtomicBoolean(false)
     private val main = Handler(Looper.getMainLooper())
-    private val gpuThread = HandlerThread("HueSync-GPU", android.os.Process.THREAD_PRIORITY_DEFAULT)
+    private val gpuThread = HandlerThread("HueSync-GPU", android.os.Process.THREAD_PRIORITY_BACKGROUND)
     private lateinit var gpu: Handler
     private val network = Executors.newSingleThreadScheduledExecutor { task -> Thread(task, "HueSync-DTLS") }
     private var projection: MediaProjection? = null
@@ -37,7 +37,8 @@ class SyncService : Service() {
     private var areaId = ""
     private var applicationId = ""
     private var startedArea = false
-    @Volatile private var latest = FloatArray(0)
+    @Volatile private var latestRaw = FloatArray(0)
+    private var latest = FloatArray(0) // Network thread only, including smoothing state.
     @Volatile private var lastFrameAt = 0L
     @Volatile private var frameCount = 0L
     @Volatile private var sampleMs = 0f
@@ -47,7 +48,7 @@ class SyncService : Service() {
     private var lastStatsFrames = 0L
     private var packets = 0L
     private val ownership = Executors.newSingleThreadScheduledExecutor { task -> Thread(task, "HueSync-Ownership") }
-    private var encodedColors: FloatArray? = null
+    private var packetInitialized = false
     private var encodedVisible = true
     private var hiddenColors = FloatArray(0)
     private val callback = object : MediaProjection.Callback() {
@@ -71,6 +72,11 @@ class SyncService : Service() {
     override fun onBind(intent: Intent?) = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_USE_COMPATIBILITY) {
+            if (alive.get()) gpu.post { capture?.useCompatibilityCapture() }
+            else stopSelf()
+            return START_NOT_STICKY
+        }
         if (intent?.action == ACTION_STOP) {
             finish(English.SYNCHRONIZATION_STOPPED)
             return START_NOT_STICKY
@@ -122,14 +128,15 @@ class SyncService : Service() {
             stream.connect(credentials.bridge.ip, credentials.applicationKey, credentials.clientKey)
             if (!alive.get()) return
             check(client.ownedBy(areaId, applicationId)) { OWNERSHIP_LOST }
-            scheduleOwnershipChecks(credentials)
+            scheduleOwnershipChecks(client)
 
             val packet = HuePacket(area.id, area.channels)
-            latest = FloatArray(area.channels.size * 3)
+            val filter = ColorFilter(area.channels.size)
+            latest = filter.streamColors
             hiddenColors = FloatArray(latest.size)
             gpu.post { if (alive.get()) startCapture(area, options) }
             network.scheduleWithFixedDelay(
-                { tick(packet, area.channels.size) }, 0,
+                { tick(packet, area.channels.size, filter, options) }, 0,
                 1_000_000_000L / options.fps, TimeUnit.NANOSECONDS
             )
         } catch (e: Exception) {
@@ -137,8 +144,7 @@ class SyncService : Service() {
         }
     }
 
-    private fun scheduleOwnershipChecks(credentials: Credentials) {
-        val client = HueApi(this, credentials.bridge, credentials.applicationKey)
+    private fun scheduleOwnershipChecks(client: HueApi) {
         ownership.scheduleWithFixedDelay({
             if (alive.get()) try {
                 check(client.ownedBy(areaId, applicationId)) { OWNERSHIP_LOST }
@@ -152,7 +158,7 @@ class SyncService : Service() {
             val currentProjection = projection ?: return
             capture = CaptureCoordinator(this, currentProjection, gpu, area, options, alive::get,
                 { colors, ms, device ->
-                    latest = colors
+                    latestRaw = colors
                     frameCount++
                     lastFrameAt = SystemClock.elapsedRealtime()
                     sampleMs = ms
@@ -162,10 +168,13 @@ class SyncService : Service() {
                 .notify(1, notification(English.syncActive(area.name))) }
         } catch (e: Exception) { finish(English.captureUnavailable(UserMessage.from(e))) }
     }
-    private fun tick(packet: HuePacket, channelCount: Int) {
+    private fun tick(packet: HuePacket, channelCount: Int, filter: ColorFilter, options: SyncOptions) {
         if (!alive.get()) return
         try {
-            sendLatest(packet)
+            val raw = latestRaw
+            // Continue the time-based transition even when capture slows down or stops changing.
+            val changed = raw.isNotEmpty() && filter.advanceSnapshot(raw, SystemClock.elapsedRealtimeNanos(), options)
+            sendLatest(packet, changed)
             val now = SystemClock.elapsedRealtime()
             if (now - lastStatsAt >= 1_000) publishStatus(now, channelCount)
         } catch (e: Exception) {
@@ -173,13 +182,13 @@ class SyncService : Service() {
         }
     }
 
-    private fun sendLatest(packet: HuePacket) {
+    private fun sendLatest(packet: HuePacket, changed: Boolean) {
         val colors = latest
         if (colors.isEmpty()) return
         val visible = contentVisible
-        if (encodedColors !== colors || encodedVisible != visible) {
+        if (!packetInitialized || encodedVisible != visible || (visible && changed)) {
             packet.update(if (visible) colors else hiddenColors)
-            encodedColors = colors
+            packetInitialized = true
             encodedVisible = visible
         } else {
             packet.advanceSequence()
@@ -211,7 +220,8 @@ class SyncService : Service() {
             running = true, message = message, fps = fps, gpuMs = sampleMs,
             channels = channelCount, renderer = renderer, colors = swatches, frames = packets,
             acquisitionMs = capture?.acquisitionMs ?: 0f,
-            drawReadbackMs = capture?.drawReadbackMs ?: 0f
+            drawReadbackMs = capture?.drawReadbackMs ?: 0f,
+            canSwitchToRgba = capture?.canSwitchToRgba == true,
         )
         lastStatsAt = now
         lastStatsFrames = frames
@@ -234,14 +244,17 @@ class SyncService : Service() {
         alive.set(false)
         ownership.shutdownNow()
         stream.abort()
-        projection?.unregisterCallback(callback)
-        projection?.stop()
+        val endingProjection = projection
+        endingProjection?.unregisterCallback(callback)
         projection = null
         gpu.post {
             gpu.removeCallbacksAndMessages(null)
-            capture?.close()
-            capture = null
-            gpuThread.quitSafely()
+            try {
+                capture?.close()
+            } finally {
+                capture = null
+                try { endingProjection?.stop() } finally { gpuThread.quitSafely() }
+            }
         }
         // Serialized behind any in-flight start: even cancellation during REST/DTLS setup releases ownership.
         network.execute {
@@ -259,6 +272,7 @@ class SyncService : Service() {
     companion object {
         const val EXTRA_CONSENT = "projectionConsent"
         const val ACTION_STOP = "com.snapps91.huesync.STOP"
+        const val ACTION_USE_COMPATIBILITY = "com.snapps91.huesync.USE_COMPATIBILITY"
         private const val OWNERSHIP_LOST = English.THE_BRIDGE_ENDED_THE_STREAM_OR
     }
 }

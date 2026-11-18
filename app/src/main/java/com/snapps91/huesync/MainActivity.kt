@@ -168,6 +168,11 @@ class MainActivity : Activity(), MainScreen.Actions {
         startService(Intent(this, SyncService::class.java).setAction(SyncService.ACTION_STOP))
     }
 
+    override fun onUseCompatibilityCapture() {
+        if (!SyncStatus.value.running || !SyncStatus.value.canSwitchToRgba) return
+        startService(Intent(this, SyncService::class.java).setAction(SyncService.ACTION_USE_COMPATIBILITY))
+    }
+
     override fun onReturnToTv() {
         startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME))
     }

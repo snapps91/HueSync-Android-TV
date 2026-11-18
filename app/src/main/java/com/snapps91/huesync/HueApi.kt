@@ -34,15 +34,18 @@ class HueApi(context: Context, private val bridge: Bridge, private val key: Stri
         init(null, managers.trustManagers, null)
     }.socketFactory
 
+    init { validateLocalIp(bridge.ip) }
+
+    private val verifier = javax.net.ssl.HostnameVerifier { _, session ->
+        val cert = session.peerCertificates.firstOrNull() as? X509Certificate
+        val cn = cert?.let(::certificateBridgeId)
+        cn != null && (bridge.id.isEmpty() || cn.equals(bridge.id, ignoreCase = true))
+    }
+
     private fun request(method: String, path: String, body: JSONObject? = null): Response {
-        validateLocalIp(bridge.ip)
         val connection = URL("https://${bridge.ip}$path").openConnection() as HttpsURLConnection
         connection.sslSocketFactory = socketFactory
-        connection.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, session ->
-            val cert = session.peerCertificates.firstOrNull() as? X509Certificate
-            val cn = cert?.let(::certificateBridgeId)
-            cn != null && (bridge.id.isEmpty() || cn.equals(bridge.id, ignoreCase = true))
-        }
+        connection.hostnameVerifier = verifier
         connection.connectTimeout = 4000
         connection.readTimeout = 4000
         connection.instanceFollowRedirects = false

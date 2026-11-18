@@ -64,7 +64,8 @@ class SyncSettings(context: Context) {
         smoothingMs = prefs.getInt("smoothing", 100),
         saturation = prefs.getFloat("saturation", 1.15f),
         crop = prefs.getFloat("crop", .08f),
-        invertHorizontal = prefs.getBoolean("invertHorizontal", true)
+        invertHorizontal = prefs.getBoolean("invertHorizontal", true),
+        prioritizeVideo = prefs.getBoolean("prioritizeVideo", true),
     )
 
     fun saveOptions(value: SyncOptions) {
@@ -76,6 +77,7 @@ class SyncSettings(context: Context) {
             .putFloat("crop", value.crop)
             .remove("compatibilityCapture")
             .putBoolean("invertHorizontal", value.invertHorizontal)
+            .putBoolean("prioritizeVideo", value.prioritizeVideo)
             .apply()
     }
 
