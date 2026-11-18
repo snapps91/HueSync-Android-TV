@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.3
+
+### Features
+
+- Adds **Prioritize video playback**, enabled by default. It samples a 128-pixel-wide image at 24 points per Hue channel and adapts analysis between 10 and 20 fps. Turning it off restores the 384-pixel capture, 96 points per channel, and the selected analysis rate.
+- Adds **Try compatibility capture** during GPU synchronization. It switches the current session to the RGBA sampler using the same virtual display and capture consent.
+
+### Performance
+
+- During continuous video, the lightweight GPU sampler reads the latest frame at each analysis deadline and uses precomputed sample weights. On supported devices it requests low GPU priority and reads colors asynchronously with OpenGL ES 3, with at most one transfer in flight.
+- Advances light transitions at the selected Hue stream rate even when capture delivers fewer frames. The stream reuses its color buffers and skips recalculating settled colors.
+
 ## 0.0.2 (released)
 
 ### Performance

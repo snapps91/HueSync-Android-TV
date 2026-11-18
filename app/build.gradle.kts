@@ -26,8 +26,8 @@ android {
         applicationId = "com.snapps91.huesync"
         minSdk = 23
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.0.3-alpha"
+        versionCode = 4
+        versionName = "0.0.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
     }
